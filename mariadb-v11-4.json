@@ -13,16 +13,26 @@
         "MariaDB 11.4": "docker pull ghcr.io/parkervcp/yolks:mariadb_11.4"
     },
     "file_denylist": [],
-    "startup": "{ /usr/sbin/mysqld & } && sleep 5 && mysql -u root",
+    "startup": "{ /usr/bin/mysqld_safe & } && sleep 5 && mysql -u root",
     "config": {
-        "files": "{\r\n    \".my.cnf\": {\r\n        \"parser\": \"file\",\r\n        \"find\": {\r\n            \"port\": \"port = {{server.build.default.port}}\",\r\n            \"bind-address\": \"bind-address=0.0.0.0\"\r\n        }\r\n    }\r\n}",
-        "startup": "{\r\n    \"done\": \"mysqld: ready for connections\"\r\n}",
-        "logs": "{}",
+        "files": {
+            ".my.cnf": {
+                "parser": "file",
+                "find": {
+                    "port": "port = {{server.build.default.port}}",
+                    "bind-address": "bind-address=0.0.0.0"
+                }
+            }
+        },
+        "startup": {
+            "done": "mysqld: ready for connections"
+        },
+        "logs": {},
         "stop": "shutdown; exit;"
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\r\n# MariaDB Installation Script\r\n#\r\n# Server Files: /mnt/server\r\nset -x\r\necho -e \"installing dependencies\"\r\napt-get -y update\r\napt-get -y install curl\r\n\r\n## add user\r\necho -e \"adding container user\"\r\nuseradd -d /home/container -m container -s /bin/bash\r\n\r\n## own server to container user\r\nchown container: /mnt/server/\r\n\r\n## run install script as user\r\necho -e \"getting my.conf\"\r\nif [ -f /mnt/server/.my.cnf ]; then\r\n    echo -e \"moving current config for install\"\r\n    mv /mnt/server/.my.cnf /mnt/server/custom.my.cnf\r\n    runuser -l container -c 'curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf > /mnt/server/.my.cnf'\r\nelse\r\n    runuser -l container -c 'curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf > /mnt/server/.my.cnf'\r\nfi\r\n\r\n## mkdir and install db\r\necho -e \"installing mysql database\"\r\nrunuser -l container -c 'mkdir -p /mnt/server/run/mysqld'\r\nrunuser -l container -c 'mkdir -p /mnt/server/log/mysql'\r\nrunuser -l container -c 'mkdir /mnt/server/mysql'\r\n\r\nrunuser -l container -c 'mysql_install_db --defaults-file=/mnt/server/.my.cnf'\r\n\r\nif [ -f /mnt/server/custom.my.cnf ]; then\r\n    echo -e \"moving current config back in place\"\r\n    mv /mnt/server/custom.my.cnf /mnt/server/.my.cnf\r\nelse\r\n    curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/my.cnf > /mnt/server/.my.cnf\r\nfi\r\necho -e \"install complete\"\r\nexit",
+            "script": "#!/bin/bash\n# MariaDB Installation Script\n#\n# Server Files: /mnt/server\nset -x\n\n# Update and install dependencies\necho -e \"Installing dependencies\"\napt-get -y update\napt-get -y install curl mariadb-server mariadb-client\n\n# Add container user\necho -e \"Adding container user\"\nuseradd -d /home/container -m container -s /bin/bash\n\n# Change ownership of server files to container user\nchown container: /mnt/server/\n\n# Fetching and configuring my.cnf\nif [ -f /mnt/server/.my.cnf ]; then\n    echo -e \"Moving current config for install\"\n    mv /mnt/server/.my.cnf /mnt/server/custom.my.cnf\n    runuser -l container -c 'curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf > /mnt/server/.my.cnf'\nelse\n    runuser -l container -c 'curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf > /mnt/server/.my.cnf'\nfi\n\n# Creating necessary directories\necho -e \"Creating directories for MariaDB\"\nrunuser -l container -c 'mkdir -p /mnt/server/run/mysqld'\nrunuser -l container -c 'mkdir -p /mnt/server/log/mysql'\nrunuser -l container -c 'mkdir /mnt/server/mysql'\n\n# Initialize the MariaDB database\necho -e \"Initializing the MariaDB database\"\nrunuser -l container -c 'mysql_install_db --defaults-file=/mnt/server/.my.cnf'\n\n# Restore original config file if present\nif [ -f /mnt/server/custom.my.cnf ]; then\n    echo -e \"Restoring original config file\"\n    mv /mnt/server/custom.my.cnf /mnt/server/.my.cnf\nelse\n    curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/my.cnf > /mnt/server/.my.cnf\nfi\n\necho -e \"Installation complete\"\nexit",
             "container": "mariadb:11.4",
             "entrypoint": "bash"
         }
