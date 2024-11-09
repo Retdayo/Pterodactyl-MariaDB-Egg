@@ -21,7 +21,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the Docker image
-        run: docker build -t ghcr.io/${{ github.repository }}/mariadb:latest .
+        run: docker tag mariadb:latest ghcr.io/retdayo/pterodactyl-mariadb-egg/mariadb:latest
 
       - name: Push the Docker image
         run: docker push ghcr.io/${{ github.repository }}/mariadb:latest
