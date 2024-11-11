@@ -10,19 +10,29 @@
     "description": "One of the most popular database servers. Made by the original developers of MySQL. Guaranteed to stay open source.",
     "features": null,
     "docker_images": {
-        "MariaDB 10.3": "ghcr.io/parkervcp/yolks:mariadb_11.4"
+        "MariaDB 11.4": "ghcr.io/parkervcp/yolks:mariadb_11.4"
     },
     "file_denylist": [],
-    "startup": "{ /usr/bin/mysqld & } && sleep 10 && /usr/bin/mysql -u root",
+    "startup": "if [ -x /usr/sbin/mysqld ]; then { /usr/sbin/mysqld & } && sleep 10 && /usr/bin/mysql -u root; elif [ -x /usr/bin/mysqld ]; then { /usr/bin/mysqld & } && sleep 10 && /usr/bin/mysql -u root; else echo 'mysqld binary not found. Please check your MariaDB installation.' && exit 1; fi",
     "config": {
-        "files": "{\r\n    \".my.cnf\": {\r\n        \"parser\": \"file\",\r\n        \"find\": {\r\n            \"port\": \"port = {{server.build.default.port}}\",\r\n            \"bind-address\": \"bind-address=0.0.0.0\"\r\n        }\r\n    }\r\n}",
-        "startup": "{\r\n    \"done\": \"mysqld: ready for connections\"\r\n}",
-        "logs": "{}",
+        "files": {
+            ".my.cnf": {
+                "parser": "file",
+                "find": {
+                    "port": "port = {{server.build.default.port}}",
+                    "bind-address": "bind-address=0.0.0.0"
+                }
+            }
+        },
+        "startup": {
+            "done": "mysqld: ready for connections"
+        },
+        "logs": {},
         "stop": "shutdown; exit;"
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\r\n# MariaDB Installation Script\r\n#\r\n# Server Files: /mnt/server\r\nset -x\r\n\r\necho -e \"installing dependencies\"\r\napt-get -y update\r\napt-get -y install curl mariadb-server\r\n\r\n## add user\r\necho -e \"adding container user\"\r\nuseradd -d /home/container -m container -s /bin/bash\r\n\r\n## own server to container user\r\nchown container: /mnt/server/\r\n\r\n## run install script as user\r\necho -e \"getting my.cnf\"\r\nif [ -f /mnt/server/.my.cnf ]; then\r\n    echo -e \"moving current config for install\"\r\n    mv /mnt/server/.my.cnf /mnt/server/custom.my.cnf\r\n    runuser -l container -c 'curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf > /mnt/server/.my.cnf'\r\nelse\r\n    runuser -l container -c 'curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf > /mnt/server/.my.cnf'\r\nfi\r\n\r\n## mkdir and install db\r\necho -e \"installing mysql database\"\r\nrunuser -l container -c 'mkdir -p /mnt/server/run/mysqld'\r\nrunuser -l container -c 'mkdir -p /mnt/server/log/mysql'\r\nrunuser -l container -c 'mkdir /mnt/server/mysql'\r\n\r\nrunuser -l container -c 'mysql_install_db --defaults-file=/mnt/server/.my.cnf'\r\n\r\nif [ -f /mnt/server/custom.my.cnf ]; then\r\n    echo -e \"moving current config back in place\"\r\n    mv /mnt/server/custom.my.cnf /mnt/server/.my.cnf\r\nelse\r\n    curl https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/my.cnf > /mnt/server/.my.cnf\r\nfi\r\n\r\necho -e \"install complete\"\r\n\r\nexit",
+            "script": "#!/bin/bash\n# MariaDB Installation Script\n#\n# Server Files: /mnt/server\nset -e\n\n# Installing dependencies\necho \"Installing dependencies\"\napt-get -y update\napt-get -y install curl mariadb-server\n\n# Add user\necho \"Adding container user\"\nuseradd -d /home/container -m container -s /bin/bash\n\n# Own server to container user\nchown container: /mnt/server/\n\n# Download and configure my.cnf\necho \"Getting my.cnf\"\nif [ -f /mnt/server/.my.cnf ]; then\n    echo \"Moving current config for install\"\n    mv /mnt/server/.my.cnf /mnt/server/custom.my.cnf\nfi\ncurl -o /mnt/server/.my.cnf https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/install.my.cnf\n\n# Create directories and initialize database\necho \"Initializing MySQL database\"\nrunuser -l container -c 'mkdir -p /mnt/server/{run/mysqld,log/mysql,mysql}'\nrunuser -l container -c 'mysql_install_db --defaults-file=/mnt/server/.my.cnf'\n\n# Restore original my.cnf if it existed\nif [ -f /mnt/server/custom.my.cnf ]; then\n    mv /mnt/server/custom.my.cnf /mnt/server/.my.cnf\nelse\n    curl -o /mnt/server/.my.cnf https://raw.githubusercontent.com/parkervcp/eggs/master/database/sql/mariadb/my.cnf\nfi\n\necho \"Install complete\"",
             "container": "mariadb:11.4",
             "entrypoint": "bash"
         }
